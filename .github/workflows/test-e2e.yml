@@ -16,15 +16,56 @@ name: End to End Test
 on:
   issue_comment:
     types: [created]
+  workflow_call:
 
 jobs:
-    e2eTest:
-        runs-on: ubuntu-latest
-        timeout-minutes: 5
-        if: github.event.issue.pull_request && contains(github.event.comment.body, '/e2eTest')
-        steps:
-          - name: Run End To End Tests
-            run: |
-              gh workflow run e2e-dispatch.yml
-            env:
-              GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  e2eTest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event.issue.pull_request && contains(github.event.comment.body, '/e2eTest')
+    steps:
+      - name: Start test
+        run: |
+          echo "Begin end to end test"
+          
+
+  createTest:
+    needs: e2eTest
+    name: Create a new survey
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Run create-test
+        uses: ./.github/actions/create-test
+        with:
+          platform-repository: ${{ github.repository }}
+          upload-artifacts: true
+
+  submitTest:
+    needs: createTest
+    name: Submit to survey
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Run submit-test
+        uses: google/ground-android/.github/actions/submit-test@master
+        with:
+          google-maps-key: ${{ secrets.GOOGLE_MAPS_KEY }}
+          use-repo-data: false
+          upload-artifacts: true
+
+  verifyTest:
+    needs: submitTest
+    name: Verify survey submissions
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Run verify-test
+        uses: ./.github/actions/verify-test
+        with:
+          platform-repository: ${{ github.repository }}
+          use-repo-data: false
